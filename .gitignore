@@ -11,3 +11,9 @@ Cargo.lock
 .vscode/
 .idea/
 *.swp
+
+# Ignore node identities and local databases
+.node*/
+.sentinel/
+**/storage.db
+identity.key
