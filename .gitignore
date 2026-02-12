@@ -1,0 +1,13 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Ignore local node data if it reappears
+**/node*/
+**/storage.db
+**/*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp

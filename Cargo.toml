@@ -1,12 +1,44 @@
 [workspace]
 members = [
     "crates/sentinel-core",
+    "crates/sentinel-core/crates/sentinel-protocol",
+    "crates/sentinel-core/crates/sentinel-transport",
+    "crates/sentinel-core/crates/sentinel-crypto",
     "crates/wraith-fs",
     "crates/wraith-cli",
 ]
 resolver = "2"
 
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+authors = ["rustyRadon"]
+
 [workspace.dependencies]
-anyhow = "1.0"
-tokio = { version = "1.35", features = ["full"] }
 sentinel-core = { path = "crates/sentinel-core" }
+sentinel-protocol = { path = "crates/sentinel-core/crates/sentinel-protocol" }
+sentinel-crypto = { path = "crates/sentinel-core/crates/sentinel-crypto" }
+sentinel-transport = { path = "crates/sentinel-core/crates/sentinel-transport" }
+tokio = { version = "1.35", features = ["full"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+async-trait = "0.1"
+futures = "0.3"
+clap = { version = "4.4", features = ["derive"] }
+rustls = { version = "0.23", features = ["ring"] }
+tokio-rustls = "0.26"
+tokio-util = { version = "0.7", features = ["codec"] }
+ed25519-dalek = "2.1"
+hex = "0.4"
+bytes = "1.5"
+rand = "0.8"
+thiserror = "1.0"
+tracing = "0.1"
+# Missing P2P/Network Ingredients
+dashmap = "5.5"
+lru = "0.12"
+mdns-sd = "0.9"
+uuid = { version = "1.6", features = ["v4"] }
+socket2 = "0.5"
+stunclient = "0.1"
+sled = "0.34"
