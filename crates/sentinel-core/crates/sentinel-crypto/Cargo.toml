@@ -1,0 +1,17 @@
+[package]
+name = "sentinel-crypto"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+ed25519-dalek = { version = "2.1", features = ["rand_core", "zeroize", "pkcs8"] }
+anyhow = "1.0"
+hex = "0.4"
+rand = "0.8"
+bs58 = "0.5"
+multihash = "0.19"
+zeroize = { version = "1.8", features = ["derive", "zeroize_derive"] }
+
+[dev-dependencies]
+tempfile = "3.8"

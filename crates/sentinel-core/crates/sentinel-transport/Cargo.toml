@@ -1,0 +1,16 @@
+[package]
+name = "sentinel-transport"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+sentinel-protocol = { workspace = true }
+tokio = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = "2.1"
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+rustls-native-certs = "0.8.3"
