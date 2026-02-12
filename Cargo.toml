@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "crates/sentinel-core",
+    "crates/wraith-fs",
+    "crates/wraith-cli",
+]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+sentinel-core = { path = "crates/sentinel-core" }
