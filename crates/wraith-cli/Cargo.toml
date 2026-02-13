@@ -4,3 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# The CLI engine
+clap = { version = "4.0", features = ["derive"] }
+# The Crypto & Identity
+bip39 = "2.0"
+confy = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+# Our internal crates
+sentinel-crypto = { path = "../sentinel-core/crates/sentinel-crypto" }
+hex.workspace = true
+rand.workspace = true
+ed25519-dalek.workspace = true
