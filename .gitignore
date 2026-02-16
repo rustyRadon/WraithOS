@@ -17,3 +17,4 @@ Cargo.lock
 .sentinel/
 **/storage.db
 identity.key
+.env

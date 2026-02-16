@@ -5,7 +5,7 @@ members = [
     "crates/sentinel-core/crates/sentinel-transport",
     "crates/sentinel-core/crates/sentinel-crypto",
     "crates/wraith-fs",
-    "crates/wraith-cli",
+    "crates/wraith-cli", "crates/wraith-gui",
 ]
 resolver = "2"
 

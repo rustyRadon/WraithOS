@@ -1,0 +1,169 @@
+import { Button, VerticalBox } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "WRAITH OS | THE RITUAL";
+    min-width: 900px;
+    min-height: 900px;
+    background: #000000;
+
+    callback generate_identity();
+    callback copy_node_id();
+    
+    in property <string> node_id: "VOID_NODE";
+    in property <[string]> words: ["?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?"];
+    
+    in-out property <bool> manifesting: false;
+    in-out property <int> flicker: 0;
+    
+    // Rust will call this at 30-60fps
+    public function update_flicker() {
+        root.flicker = (root.flicker == 0) ? 1 : 0;
+    }
+
+    // THE ABYSS (Background)
+    Rectangle {
+        background: @radial-gradient(circle, #1a0505 0%, #000000 100%);
+
+        // LAYER 1: CHAOTIC VIBRATION WRAPPER
+        // This shakes the ENTIRE interface
+        Rectangle {
+            x: root.manifesting ? (root.flicker * 4px) : 0px;
+            y: root.manifesting ? (root.flicker * -2px) : 0px;
+
+            VerticalLayout {
+                padding: 50px;
+                spacing: 20px;
+                alignment: center;
+
+                // TITLE - CURSED TYPOGRAPHY
+                Text {
+                    text: "⛧ W R A I T H   O S ⛧";
+                    font-size: 50px;
+                    font-weight: 900;
+                    color: root.manifesting ? #ff0000 : #00ffff44;
+                    horizontal-alignment: center;
+                    letter-spacing: 25px;
+                    // Candlelight flicker effect
+                    opacity: root.manifesting ? (root.flicker == 1 ? 0.8 : 1.0) : 0.3;
+                }
+
+                Text {
+                    text: "DO NOT CLOSE THE CIRCLE";
+                    font-size: 10px;
+                    color: #ff0000;
+                    horizontal-alignment: center;
+                    letter-spacing: 8px;
+                    opacity: root.manifesting ? 1.0 : 0.0;
+                }
+
+                // THE GRID OF THE DAMNED
+                Rectangle {
+                    height: 550px;
+                    width: 750px;
+                    
+                    for row_idx in 4: HorizontalLayout {
+                        y: row_idx * 130px;
+                        spacing: 20px;
+                        alignment: center;
+                        for col_idx in 6: Rectangle {
+                            width: 105px;
+                            height: 105px;
+                            
+                            // Visual instability
+                            background: root.manifesting ? #220000aa : #000000;
+                            border-width: root.manifesting ? (root.flicker == 1 ? 4px : 2px) : 1px;
+                            border-color: root.manifesting ? #ff0000 : #00ffff22;
+                            border-radius: root.manifesting ? (root.flicker * 10px) : 0px; // Shape shifting
+
+                            // THE SPIRITS (Words)
+                            Text {
+                                text: root.words[row_idx * 6 + col_idx];
+                                color: root.manifesting ? #ffffff : #00000000;
+                                font-size: 13px;
+                                font-family: "monospace";
+                                font-weight: 900;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                letter-spacing: 2px;
+                            }
+
+                            // DEMONIC EYES
+                            Rectangle {
+                                width: 6px;
+                                height: 6px;
+                                x: 80px;
+                                y: 15px;
+                                border-radius: 3px;
+                                background: #ff0000;
+                                opacity: root.manifesting ? (root.flicker * 1.0) : 0.0;
+                                // Subtle glow for eyes
+                                drop-shadow-blur: 5px;
+                                drop-shadow-color: #ff0000;
+                            }
+
+                            // OCCULT SIGIL
+                            Text {
+                                text: "⚸";
+                                font-size: 20px;
+                                color: #ff000022;
+                                x: 10px;
+                                y: 70px;
+                                opacity: root.manifesting ? 0.4 : 0.0;
+                            }
+                        }
+                    }
+                }
+
+                // ID SECTION - UNSTABLE BORDER
+                Rectangle {
+                    width: 500px;
+                    height: 60px;
+                    border-width: 2px;
+                    border-color: root.manifesting ? #ff0000 : #00ffff11;
+                    background: #050000;
+                    
+                    // HEARTBEAT PULSE
+                    animate border-width { duration: 500ms; iteration-count: -1; easing: ease-in-out-sine; }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 20px;
+                        Text {
+                            text: "☠️ \{root.node_id}";
+                            color: root.manifesting ? #ff0000 : #00ffff66;
+                            font-family: "monospace";
+                            vertical-alignment: center;
+                        }
+                        Button {
+                            text: "C O P Y";
+                            clicked => { root.copy_node_id() }
+                        }
+                    }
+                }
+
+                // THE SUMMONER
+                Rectangle {
+                    height: 80px;
+                    Button {
+                        text: root.manifesting ? "🔥 B A N I S H 🔥" : "⛧ S U M M O N ⛧";
+                        width: 300px;
+                        height: 60px;
+                        clicked => { 
+                            root.generate_identity();
+                            root.manifesting = !root.manifesting;
+                        }
+                    }
+                }
+
+                // CURSED FOOTER
+                Text {
+                    text: "T H E   V O I D   G A Z E S   B A C K";
+                    color: #222;
+                    font-size: 9px;
+                    letter-spacing: 10px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}

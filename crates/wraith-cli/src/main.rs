@@ -1,9 +1,7 @@
 use bip39::{Mnemonic, Language};
 use serde::{Serialize, Deserialize};
 use rand::RngCore;
-// Correct import based on your lib.rs
 //use sentinel_crypto::NodeIdentity as _;
-// We need this to handle the conversion from seed to signing key
 use ed25519_dalek::SigningKey;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -28,26 +26,19 @@ fn main() {
 }
 
 fn summon_new_identity() {
-    // 1. Generate 32 bytes of random entropy
     let mut entropy = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut entropy);
 
-    // 2. Create mnemonic from that entropy
     let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)
         .expect("Failed to create mnemonic");
     let phrase = mnemonic.to_string();
 
-    // 3. Turn words into a Seed
     let seed = mnemonic.to_seed(""); 
     let seed_32: [u8; 32] = seed[0..32].try_into().expect("Seed conversion failed");
     
-    // --- THE FIX ---
-    // Instead of just using SigningKey, we wrap it in your NodeIdentity struct
+    // wrap your bih ahh up in NodeIdentity struct
     let signing_key = SigningKey::from_bytes(&seed_32);
     
-    // We create the identity wrapper you defined in sentinel-crypto
-    // Note: Since signing_key is private in your struct, we just need to ensure 
-    // we use a method that returns the Node ID string.
     let public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
 
     println!("\n⚠️  RECOVERY PHRASE (SAVE THIS!) ⚠️");
@@ -66,8 +57,7 @@ fn summon_new_identity() {
 
 fn boot_sentinel(_id: WraithIdentity) {
     println!("Starting Sentinel Engine...");
-    // Logic for P2P connection goes here next
+    // logic for P2P connection 
 }
 
-//work more coffee favorite ankle grant meat island plastic despair hockey nominee build tonight remain orange slab hotel snack unable lyrics acoustic coyote mask
 
