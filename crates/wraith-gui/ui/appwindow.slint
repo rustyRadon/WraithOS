@@ -45,11 +45,10 @@ export component AppWindow inherits Window {
             height: 580px; width: 850px;
             for row_idx in 4: HorizontalLayout {
                 y: row_idx * 145px; spacing: 35px; alignment: center;
-                for col_idx in 6: socket-container := Rectangle { // Named this container
+                for col_idx in 6: socket-container := Rectangle { 
                     property <int> idx: row_idx * 6 + col_idx;
                     width: 100px; height: 100px;
 
-                    // Orbital Physics
                     property <float> t: animation-tick() / 1ms;
                     property <length> off_x: Math.sin((t / 2500.0 + (idx * 0.6)) * 1rad) * 15px;
                     property <length> off_y: Math.cos((t / 2500.0 + (idx * 0.6)) * 1rad) * 15px;
