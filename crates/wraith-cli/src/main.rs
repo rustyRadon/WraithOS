@@ -11,7 +11,7 @@ struct WraithIdentity {
 }
 
 fn main() {
-    println!("--- WraithOS: Spectral Initialization ---");
+    println!("---- WraithOS: Spectral Initialization ----");
 
     let identity: WraithIdentity = confy::load("wraith-os", "identity").unwrap_or_default();
 
