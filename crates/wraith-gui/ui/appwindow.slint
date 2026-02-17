@@ -1,161 +1,165 @@
-import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { Button, VerticalBox, LineEdit } from "std-widgets.slint";
 
 export component AppWindow inherits Window {
     title: "WRAITH OS | THE RITUAL";
-    min-width: 900px;
-    min-height: 900px;
+    min-width: 1000px;
+    min-height: 950px;
     background: #000000;
 
     callback generate_identity();
+    callback manifest_identity(string);
     callback copy_node_id();
     
     in property <string> node_id: "VOID_NODE";
-    in property <[string]> words: ["?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?","?"];
-    
+    in-out property <[string]> words: ["","","","","","","","","","","","","","","","","","","","","","","",""];
+    in-out property <int> active_socket: -1;
     in-out property <bool> manifesting: false;
 
-    // --- SPECTRAL BACKGROUND ---
+    // --- BACKGROUND ---
     Image {
         source: @image-url("../images/img1.png");
-        width: 100%;
-        height: 100%;
-        image-fit: cover;
-        opacity: root.manifesting ? 0.35 : 0.12;
-        animate opacity { duration: 1200ms; easing: ease-in-out; }
+        width: 100%; height: 100%; image-fit: cover;
+        opacity: root.manifesting ? 0.4 : 0.15;
+        animate opacity { duration: 1500ms; easing: ease-in-out; }
     }
 
-    // THE ABYSS OVERLAY
     Rectangle {
-        background: @radial-gradient(circle, #00000000 0%, #000000cc 75%, #000000ff 100%);
+        background: @radial-gradient(circle, #00000000 0%, #000000dd 85%);
     }
 
     VerticalLayout {
-        padding: 40px;
-        spacing: 35px;
-        alignment: center;
+        padding: 50px; spacing: 40px; alignment: center;
 
-        // TITLE WITH OCCULT SPACING
         Text {
-            text: "⛧ W R A I T H   O S ⛧";
-            font-size: 42px;
+            text: root.manifesting ? "⛧ W E L C O M E   H O M E ⛧" : "⛧ W R A I T H   O S ⛧";
+            font-size: 48px;
             font-weight: 900;
-            color: root.manifesting ? #ff3333 : #00ffff33;
+            color: root.manifesting ? #00ffcc : #ff3333;
             horizontal-alignment: center;
-            letter-spacing: 18px;
-            animate color { duration: 800ms; }
+            letter-spacing: 22px;
+            animate color { duration: 1000ms; }
+            
+            // Fixed: Added * 1rad to convert float to angle
+            opacity: 0.8 + Math.sin((animation-tick() / 150ms) * 1rad) * 0.2;
         }
 
-        // --- THE CIRCLE OF NODES ---
         Rectangle {
-            height: 580px;
-            width: 820px;
-            
+            height: 580px; width: 850px;
             for row_idx in 4: HorizontalLayout {
-                y: row_idx * 145px;
-                spacing: 35px;
-                alignment: center;
-                for col_idx in 6: Rectangle {
-                    width: 110px;
-                    height: 110px;
+                y: row_idx * 145px; spacing: 35px; alignment: center;
+                for col_idx in 6: socket-container := Rectangle { // Named this container
+                    property <int> idx: row_idx * 6 + col_idx;
+                    width: 100px; height: 100px;
 
-                    // ORBITAL PHYSICS ENGINE
-                    // animation-tick() / 1ms converts to unitless float.
-                    // Multiplying the float by 1rad converts it to an 'angle' unit for Slint.
+                    // Orbital Physics
                     property <float> t: animation-tick() / 1ms;
-                    property <length> off_x: Math.sin((t / 1200.0 + (row_idx * 0.7) + (col_idx * 0.4)) * 1rad) * 18px;
-                    property <length> off_y: Math.cos((t / 1200.0 + (row_idx * 0.7) + (col_idx * 0.4)) * 1rad) * 18px;
+                    property <length> off_x: Math.sin((t / 2500.0 + (idx * 0.6)) * 1rad) * 15px;
+                    property <length> off_y: Math.cos((t / 2500.0 + (idx * 0.6)) * 1rad) * 15px;
 
-                    // THE SPECTRAL NODE (2cm Circular Core)
-                    Rectangle {
-                        x: parent.off_x + (parent.width - self.width) / 2;
-                        y: parent.off_y + (parent.height - self.height) / 2;
-                        width: 76px; 
-                        height: 76px;
-                        border-radius: 38px;
+                    TouchArea {
+                        clicked => { root.active_socket = idx; }
                         
-                        background: root.manifesting 
-                            ? @radial-gradient(circle, #ff000044 0%, #330000aa 100%) 
-                            : #00ffff0a;
-                        border-width: root.manifesting ? 2.5px : 1px;
-                        border-color: root.manifesting ? #ff3333 : #00ffff22;
-                        
-                        // Spectral Bloom
-                        drop-shadow-blur: root.manifesting ? 20px : 0px;
-                        drop-shadow-color: #ff000088;
+                        Rectangle {
+                            x: socket-container.off_x + (parent.width - self.width) / 2;
+                            y: socket-container.off_y + (parent.height - self.height) / 2;
+                            width: 80px; height: 80px; border-radius: 40px;
+                            
+                            background: root.active_socket == idx 
+                                ? #ff333366 
+                                : (root.manifesting ? #00ffcc15 : #0a0a0a);
+                            
+                            border-width: root.active_socket == idx ? 3px : 1.5px;
+                            border-color: root.words[idx] == "" 
+                                ? #222 
+                                : (root.manifesting ? #00ffcc : #ff3333);
+                            
+                            drop-shadow-blur: root.manifesting ? 20px : 0px;
+                            drop-shadow-color: #00ffcc66;
 
-                        animate background { duration: 1000ms; }
-                        animate border-color { duration: 600ms; }
-                        animate drop-shadow-blur { duration: 1500ms; }
+                            animate background, border-color, width, height { duration: 400ms; easing: ease-out; }
 
-                        // THE SOUL (Word)
-                        Text {
-                            text: root.words[row_idx * 6 + col_idx];
-                            color: root.manifesting ? #ffffff : #00000000;
-                            font-size: 11px;
-                            font-weight: 900;
-                            font-family: "monospace";
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                            animate color { duration: 1000ms; }
+                            Text {
+                                text: root.manifesting ? "" : (root.words[idx] == "" ? "\{idx + 1}" : "⚸");
+                                color: root.words[idx] == "" ? #444 : #ff3333;
+                                font-size: 16px;
+                                font-family: "monospace";
+                            }
                         }
                     }
                 }
             }
         }
 
-        // --- COMMAND SECTION ---
-        VerticalLayout {
-            spacing: 25px;
-            alignment: center;
+        if (!root.manifesting) : Rectangle {
+            width: 550px; height: 100px;
+            background: #050505f0; 
+            border-radius: 2px; 
+            border-width: 1px; 
+            border-color: #ff333333;
             
-            // THE IDENTITY PILL
-            Rectangle {
-                width: 450px;
-                height: 55px;
-                background: #080808ee;
-                border-radius: 27px;
-                border-width: 1px;
-                border-color: root.manifesting ? #ff000066 : #222;
-                
-                HorizontalLayout {
-                    padding-left: 25px;
-                    padding-right: 25px;
-                    spacing: 15px;
-                    
-                    Text {
-                        text: "NODE ID:";
-                        color: root.manifesting ? #ff3333 : #444;
-                        font-weight: 800;
-                        vertical-alignment: center;
-                    }
-
-                    Text {
-                        text: root.node_id;
-                        color: root.manifesting ? #00ffcc : #00ffcc33;
-                        font-family: "monospace";
-                        vertical-alignment: center;
-                        letter-spacing: 1px;
-                    }
-
-                    Rectangle { width: 1px; background: #333; height: 20px; } // Separator
-
-                    Button {
-                        text: "COPY";
-                        width: 70px;
-                        height: 30px;
-                        clicked => { root.copy_node_id() }
+            VerticalLayout {
+                padding: 15px; spacing: 8px;
+                Text {
+                    text: root.active_socket == -1 
+                        ? ">> STANDBY: SELECT A SOCKET TO INJECT IDENTITY" 
+                        : ">> INJECTING DATA INTO NODE #\{root.active_socket + 1}...";
+                    color: #ff3333; font-family: "monospace"; font-size: 11px;
+                    letter-spacing: 1px;
+                }
+                LineEdit {
+                    placeholder-text: "awaiting ritual word...";
+                    enabled: root.active_socket != -1;
+                    font-size: 18px;
+                    accepted(val) => {
+                        root.words[root.active_socket] = val;
+                        if (root.active_socket < 23) { root.active_socket += 1; }
+                        self.text = "";
                     }
                 }
             }
+        }
 
-            // THE RITUAL TRIGGER
+        if (root.manifesting) : Rectangle {
+            width: 700px; height: 80px;
+            background: #00ffcc08; border-radius: 40px; border-width: 1px; border-color: #00ffcc44;
+            
+            HorizontalLayout {
+                padding-left: 30px; padding-right: 30px; spacing: 20px;
+                alignment: center;
+                Text {
+                    text: "NODE ID:"; color: #00ffcc88; font-weight: 800; vertical-alignment: center;
+                }
+                Text {
+                    text: root.node_id; color: #00ffcc; font-family: "monospace"; 
+                    vertical-alignment: center; font-size: 12px;
+                }
+                Button {
+                    text: "COPY"; width: 80px; height: 35px;
+                    clicked => { root.copy_node_id() }
+                }
+            }
+        }
+
+        // --- THE MASTER TRIGGER ---
+        HorizontalLayout {
+            spacing: 30px; alignment: center;
+            
+            if (!root.manifesting) : Button {
+                text: "⛧ SUMMON NEW ⛧";
+                width: 200px; height: 55px;
+                clicked => { root.generate_identity(); }
+            }
+
             Button {
-                text: root.manifesting ? "🔥 B A N I S H   S P I R I T 🔥" : "⛧ S U M M O N   I D E N T I T Y ⛧";
-                width: 380px;
-                height: 65px;
+                text: root.manifesting ? "🔥 B A N I S H 🔥" : "⛧ M A N I F E S T ⛧";
+                width: 300px; height: 60px;
                 clicked => { 
-                    root.generate_identity();
-                    root.manifesting = !root.manifesting;
+                    if (root.manifesting) {
+                        root.manifesting = false;
+                        root.words = ["","","","","","","","","","","","","","","","","","","","","","","",""];
+                    } else {
+                        root.manifest_identity("exec");
+                    }
                 }
             }
         }
