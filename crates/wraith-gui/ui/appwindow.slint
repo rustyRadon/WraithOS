@@ -15,7 +15,6 @@ export component AppWindow inherits Window {
     in-out property <int> active_socket: -1;
     in-out property <bool> manifesting: false;
 
-    // --- BACKGROUND ---
     Image {
         source: @image-url("../images/img1.png");
         width: 100%; height: 100%; image-fit: cover;
@@ -39,7 +38,6 @@ export component AppWindow inherits Window {
             letter-spacing: 22px;
             animate color { duration: 1000ms; }
             
-            // Fixed: Added * 1rad to convert float to angle
             opacity: 0.8 + Math.sin((animation-tick() / 150ms) * 1rad) * 0.2;
         }
 
@@ -140,7 +138,6 @@ export component AppWindow inherits Window {
             }
         }
 
-        // --- THE MASTER TRIGGER ---
         HorizontalLayout {
             spacing: 30px; alignment: center;
             
