@@ -7,7 +7,7 @@ edition = "2024"
 # The CLI engine
 clap = { version = "4.0", features = ["derive"] }
 # The Crypto & Identity
-bip39 = "2.0"
+bip39 = { version = "2.0", features = ["rand"] }
 confy = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 # Our internal crates
