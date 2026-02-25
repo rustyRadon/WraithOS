@@ -5,31 +5,26 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-// Using the full feature set of tokio to allow async main
 #[tokio::main]
 async fn main() -> Result<()> {
+
+    let _ = rustls::crypto::ring::default_provider().install_default();
     print_banner();
 
-    // Setup data directory for persistence
     let data_dir = PathBuf::from("."); 
     let key_path = data_dir.join("identity.key");
 
-    // 1. Load or Summon Identity
-    let identity = if key_path.exists() {
+    let _identity = if key_path.exists() {
         println!("Welcome back, Ghost. Identity loaded from sector.");
         NodeIdentity::load_or_generate(key_path.to_str().unwrap())?
     } else {
         perform_initial_ritual(&key_path)?
     };
 
-    // 2. Initialize the Sentinel Engine (The Brain)
-    // Explicitly destructure to help the compiler with types
     let (node_raw, _signaler_rx) = SentinelNode::new(data_dir, 5000).await
         .context("Failed to initialize Sentinel Engine")?;
     let node = Arc::new(node_raw);
 
-    // 3. Spawn Engine Background Tasks
-    // FIX: Explicitly define the channel type to resolve E0282
     let (event_tx, mut _event_rx) = tokio::sync::mpsc::unbounded_channel::<sentinel_core::SentinelEvent>();
     
     let node_inner = Arc::clone(&node);
@@ -39,16 +34,13 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Start background services: Heartbeat, Discovery, etc.
     tokio::spawn(Arc::clone(&node).start_heartbeat_service());
     
-    // Ensure discovery starts - node and port
     let discovery_node = Arc::clone(&node);
     tokio::spawn(async move {
         let _ = sentinel_core::discovery::start_discovery(discovery_node, 5000).await;
     });
 
-    // 4. Enter the Interactive Sentinel Loop
     boot_sentinel(node).await?;
 
     Ok(())
@@ -94,7 +86,6 @@ async fn boot_sentinel(node: Arc<SentinelNode>) -> Result<()> {
                 
                 println!("Slicing file into the void...");
                 
-                // Derive a 32-byte key from the identity for encryption
                 let mut key = [0u8; 32];
                 let pk_bytes = node.identity.public_key_bytes();
                 let len = pk_bytes.len().min(32);

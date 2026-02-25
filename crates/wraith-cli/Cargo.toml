@@ -21,3 +21,4 @@ wraith-fs = { path = "../wraith-fs" }
 tokio = { version = "1.0", features = ["full"] } # "full" fixes the async main error
 tokio-util = { version = "0.7", features = ["codec"] }
 futures = "0.3"
+rustls = { workspace = true, features = ["ring"] }

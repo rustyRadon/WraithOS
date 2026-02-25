@@ -66,7 +66,7 @@ fn main() -> Result<(), slint::PlatformError> {
             rand::thread_rng().fill_bytes(&mut entropy);
             let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy).unwrap();
             
-            let words_vec: Vec<SharedString> = mnemonic.word_iter()
+            let words_vec: Vec<SharedString> = mnemonic.words()
                 .map(SharedString::from)
                 .collect();
 
