@@ -308,8 +308,9 @@ impl SentinelNode {
                 seen.put(msg.id, ());
             }
 
+            // signature Verification 
             if !msg.signature.is_empty() && !NodeIdentity::verify(&msg.sig_hash(), &msg.signature, &msg.public_key) {
-                return Ok(());
+                return Err(anyhow::anyhow!("Forged signature detected from {}", addr));
             }
 
             match &msg.content { 
@@ -320,9 +321,43 @@ impl SentinelNode {
                         peer.public_key = Some(public_key.clone()); 
                     }
                 }
+
                 MessageContent::Chat(text) if text != "PING" => {
                     let _ = node.persist_message(&msg);
                 }
+
+                // PHASE 4 STORAGE HANDLERS 
+
+                MessageContent::DirectoryRequest => {
+                    let library = node.get_local_library()?;
+                    let response = SentinelMessage::new(
+                        node.identity.node_id(),
+                        MessageContent::DirectoryResponse(library)
+                    );
+                    if let Some(peer) = node.peers.get(&addr) {
+                        node.sign_and_send(&peer.tx, response);
+                    }
+                }
+
+                MessageContent::DataRequest { file_id, chunk_index } => {
+                // fetch dust" from Sled
+                    if let Ok(Some(chunk_data)) = node.db.open_tree("file_chunks")?
+                        .get(format!("{}_{}", file_id, chunk_index)) 
+                    {
+                        let response = SentinelMessage::new(
+                            node.identity.node_id(),
+                            MessageContent::DataResponse {
+                                file_id: *file_id,
+                                chunk_index: *chunk_index,
+                                data: chunk_data.to_vec(),
+                            }
+                        );
+                        if let Some(peer) = node.peers.get(&addr) {
+                            node.sign_and_send(&peer.tx, response);
+                        }
+                    }
+                }
+
                 _ => {}
             }
             Ok(())
@@ -347,6 +382,41 @@ impl SentinelNode {
                 for entry in self.peers.iter() { self.sign_and_send(&entry.value().tx, msg.clone()); }
             }
         }
+    }
+
+    pub fn ingest_file(&self, name: &str, file_id: Uuid, chunks: Vec<Vec<u8>>) -> Result<()> {
+        let metadata_tree = self.db.open_tree("file_metadata")?;
+        let chunks_tree = self.db.open_tree("file_chunks")?;
+
+        // 1. Store the chunks
+        for (i, data) in chunks.iter().enumerate() {
+            chunks_tree.insert(format!("{}_{}", file_id, i), data.as_slice())?;
+        }
+
+        // 2. Store the metadata so we can list it later
+        let meta = sentinel_protocol::messages::FileMetadata {
+            id: file_id,
+            name: name.to_string(),
+            size: (chunks.len() * 1024 * 1024) as u64, // Approximate
+            total_chunks: chunks.len() as u32,
+            merkle_root: vec![], // Future: add integrity check
+        };
+        
+        metadata_tree.insert(file_id.as_bytes(), bincode::serialize(&meta)?)?;
+        Ok(())
+    }
+
+    /// Retrieve the list of all files this node is hosting
+    pub fn get_local_library(&self) -> Result<Vec<sentinel_protocol::messages::FileMetadata>> {
+        let metadata_tree = self.db.open_tree("file_metadata")?;
+        let mut library = Vec::new();
+
+        for item in metadata_tree.iter() {
+            let (_, v) = item?;
+            let meta: sentinel_protocol::messages::FileMetadata = bincode::deserialize(&v)?;
+            library.push(meta);
+        }
+        Ok(library)
     }
 
     pub fn persist_message(&self, msg: &SentinelMessage) -> Result<()> {

@@ -38,17 +38,25 @@ pub enum MessageContent {
         public_key: Vec<u8>,
         node_name: String 
     },
+
+    DirectoryRequest,
+    DirectoryResponse(Vec<FileMetadata>),
+
+    DataRequest { file_id: Uuid, chunk_index: u32 },
+    DataResponse { file_id: Uuid, chunk_index: u32, data: Vec<u8> },
+
     PeerDiscovery(Vec<PeerInfo>),
     Signal(SignalingMessage),
     Ping,
     Pong,
-    /// New for Phase 3: System-level notifications
     Disconnect(String), 
 }
 
+
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SentinelMessage {
-    pub version: u32,       // Added for Protocol Hardening
+    pub version: u32,       
     pub id: Uuid,           
     pub sender: String,  
     pub public_key: Vec<u8>,   
@@ -57,10 +65,19 @@ pub struct SentinelMessage {
     pub signature: Vec<u8>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FileMetadata {
+    pub id: Uuid,
+    pub name: String,
+    pub size: u64,
+    pub total_chunks: u32,
+    pub merkle_root: Vec<u8>, 
+}
+
 impl SentinelMessage {
     pub fn new(sender: String, content: MessageContent) -> Self {
         Self {
-            version: 3,     // Current Phase
+            version: 3,    
             id: Uuid::new_v4(),
             sender,
             public_key: vec![],
@@ -78,7 +95,7 @@ impl SentinelMessage {
     }
 
     pub fn sig_hash(&self) -> Vec<u8> {
-        let mut data = self.version.to_le_bytes().to_vec(); // Include version in hash
+        let mut data = self.version.to_le_bytes().to_vec(); 
         data.extend_from_slice(self.id.as_bytes());
         data.extend_from_slice(self.sender.as_bytes());
         data.extend_from_slice(&self.timestamp.to_le_bytes());
