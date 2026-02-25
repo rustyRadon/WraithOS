@@ -13,6 +13,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use std::io::Write;
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::codec::Framed;
@@ -101,7 +102,6 @@ impl SentinelNode {
                     let (mut sink, mut stream_in) = Framed::new(tls, SentinelCodec::new()).split();
                     let (peer_tx, mut peer_rx) = mpsc::unbounded_channel();
 
-                    // 1. Handshake setup
                     let hs = SentinelMessage::new(
                         node.identity.node_id(),
                         MessageContent::Handshake {
@@ -111,7 +111,6 @@ impl SentinelNode {
                     );
                     node.sign_and_send(&peer_tx, hs);
 
-                    // 2. Register Peer internally
                     node.peers.insert(addr_str.clone(), PeerState {
                         tx: peer_tx,
                         node_id: "pending".into(),
@@ -120,16 +119,13 @@ impl SentinelNode {
                         last_seen: std::time::Instant::now(),
                     });
 
-                    // 3. Outbound Worker (Library Internal)
                     tokio::spawn(async move {
                         while let Some(msg) = peer_rx.recv().await {
                             if sink.send(msg).await.is_err() { break; }
                         }
                     });
 
-                    // 4. Inbound Message Loop
                     while let Some(Ok(msg)) = stream_in.next().await {
-                        // Emit high-level event for UI
                         if let MessageContent::Chat(text) = &msg.content {
                             if text != "PING" {
                                 let _ = tx.send(SentinelEvent::ChatMessage {
@@ -138,8 +134,6 @@ impl SentinelNode {
                                 });
                             }
                         }
-                        
-                        // Process protocol logic
                         let _ = node.clone().handle_incoming_message(msg, addr_str.clone()).await;
                     }
                     node.peers.remove(&addr_str);
@@ -149,63 +143,43 @@ impl SentinelNode {
         }
     }
 
-    pub async fn is_local_peer(&self, target: SocketAddr) -> bool {
-        if let Some(my_public) = *self.public_addr.read().await {
-            return target.ip() == my_public.ip();
-        }
-        false
+    /// Universal entry point for connecting to a Ghost by ID (Global or Local)
+    pub async fn request_ghost_by_id(self: Arc<Self>, target_id: String) -> Result<()> {
+        // 1. Check if we already have an IP for this ID (cached or discovered via mDNS)
+        let existing_addr = self.peers.iter().find_map(|entry| {
+            if entry.value().node_id == target_id { Some(entry.key().clone()) } else { None }
+        });
+
+        let target_addr = if let Some(addr) = existing_addr {
+            addr
+        } else {
+            // 2. Fallback to Global Registry lookup
+            self.query_registry(&target_id).await?
+        };
+
+        self.dial_peer(target_addr).await
     }
 
-    pub async fn discover_and_set_public_ip(&self) -> Result<()> {
-        match FighterSocket::discover_public_ip(self.listen_port).await {
-            Ok(addr) => {
-                let mut lock = self.public_addr.write().await;
-                *lock = Some(addr);
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!("STUN discovery failed: {}", e)),
-        }
-    }
-
-    pub fn sign_and_send(&self, tx: &mpsc::UnboundedSender<SentinelMessage>, mut msg: SentinelMessage) {
-        msg.public_key = self.identity.public_key_bytes();
-        msg.signature = self.identity.sign(&msg.sig_hash());
-        let _ = tx.send(msg);
-    }
-
-    pub async fn start_heartbeat_service(self: Arc<Self>) {
-        let mut interval = tokio::time::interval(Duration::from_secs(20));
-        loop {
-            interval.tick().await;
-            let ping = SentinelMessage::new(self.identity.node_id(), MessageContent::Chat("PING".into()));
-            for entry in self.peers.iter() {
-                self.sign_and_send(&entry.value().tx, ping.clone());
-            }
-            
-            self.peers.retain(|_, state| state.last_seen.elapsed() < Duration::from_secs(60));
-        }
-    }
-
+    /// The networking "Pipes" with integrated Hole Punching
     pub async fn dial_peer(self: Arc<Self>, addr: String) -> Result<()> {
-        let target_addr: SocketAddr = addr.to_socket_addrs()?.next().context("Address resolution failed")?;
+        let target_addr: SocketAddr = addr.to_socket_addrs()?.next()
+            .context("Address resolution failed")?;
 
         if target_addr.port() == self.listen_port || self.peers.contains_key(&addr) {
             return Ok(());
         }
 
+        // --- THE FIGHTER PUNCH (NAT Traversal) ---
         let local_bind = SocketAddr::from(([0, 0, 0, 0], self.listen_port));
         let fighter = FighterSocket::create_war_ready(local_bind)
             .or_else(|_| FighterSocket::create_war_ready(SocketAddr::from(([0, 0, 0, 0], 0))))?;
 
-        match fighter.connect(&target_addr.into()) {
-            Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.raw_os_error() == Some(115) => {}
-            Err(e) => return Err(anyhow::anyhow!("Fighter punch failed: {}", e)),
-        }
-
+        let _ = fighter.connect(&target_addr.into());
+        
         let std_stream: std::net::TcpStream = fighter.into();
         let tokio_stream = TokioTcpStream::from_std(std_stream)?;
         tokio_stream.writable().await?;
+        // -----------------------------------------
 
         let connector = SentinelConnector::new();
         let tls = connector.connect("sentinel-node.local", tokio_stream).await?;
@@ -216,7 +190,7 @@ impl SentinelNode {
         self.peers.insert(addr.clone(), PeerState {
             tx: tx.clone(),
             node_id: "pending".into(),
-            node_name: "Outbound".into(),
+            node_name: "Ghost".into(),
             public_key: None,
             last_seen: std::time::Instant::now(),
         });
@@ -243,6 +217,45 @@ impl SentinelNode {
         });
 
         Ok(())
+    }
+
+    /// Global "Phonebook" lookup against the Signaler server
+    pub async fn query_registry(&self, target_id: &str) -> Result<String> {
+        let signaler_addr = "127.0.0.1:8888"; // Update this to your deployed Signaler IP
+        
+        let stream = TokioTcpStream::connect(signaler_addr).await
+            .context("Signaler unreachable")?;
+        let mut framed = Framed::new(stream, SentinelCodec::new());
+
+        // We must register ourselves to the signaler to perform lookups
+        let reg = SentinelMessage::new(
+            self.identity.node_id(),
+            MessageContent::Signal(SignalingMessage::Register {
+                node_id: self.identity.node_id(),
+                public_key: self.identity.public_key_bytes(),
+                signature: vec![], 
+            }),
+        );
+        framed.send(reg).await?;
+
+        let lookup = SentinelMessage::new(
+            self.identity.node_id(),
+            MessageContent::Signal(SignalingMessage::LookupRequest { 
+                target_id: target_id.to_string() 
+            }),
+        );
+        framed.send(lookup).await?;
+
+        while let Some(Ok(resp)) = framed.next().await {
+            if let MessageContent::Signal(SignalingMessage::PeerResponse { public_addr, .. }) = resp.content {
+                return Ok(public_addr.to_string());
+            }
+            if let MessageContent::Signal(SignalingMessage::Error(e)) = resp.content {
+                return Err(anyhow::anyhow!("Signaler Error: {}", e));
+            }
+        }
+        
+        Err(anyhow::anyhow!("Ghost ID {} not found in local or global registries.", target_id))
     }
 
     pub async fn start_signaler_client(
@@ -283,18 +296,6 @@ impl SentinelNode {
         }
     }
 
-    pub fn print_history(&self) -> Result<()> {
-        let tree = self.db.open_tree("messages")?;
-        for item in tree.iter().values().rev().take(10) { let item = item?;
-            if let Ok(msg) = SentinelMessage::from_bytes(&item) {
-                if let MessageContent::Chat(text) = msg.content {
-                    println!("[{}] {}", msg.sender, text);
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub(crate) fn handle_incoming_message(self: Arc<Self>, msg: SentinelMessage, addr: String) -> BoxFuture<'static, Result<()>> {
         let node = self.clone();
         async move {
@@ -308,7 +309,6 @@ impl SentinelNode {
                 seen.put(msg.id, ());
             }
 
-            // signature Verification 
             if !msg.signature.is_empty() && !NodeIdentity::verify(&msg.sig_hash(), &msg.signature, &msg.public_key) {
                 return Err(anyhow::anyhow!("Forged signature detected from {}", addr));
             }
@@ -319,14 +319,17 @@ impl SentinelNode {
                         peer.node_id = msg.sender.clone();
                         peer.node_name = node_name.clone(); 
                         peer.public_key = Some(public_key.clone()); 
+
+                        println!("\n[!] Incoming connection from Ghost: {}", peer.node_id);
+                        println!("    Name: {} | Trust: Level 1 (Handshaked)", peer.node_name);
+                        print!("\nwraith@{} >> ", &node.identity.node_id()[..8]);
+                        let _ = std::io::stdout().flush();                        
                     }
                 }
 
                 MessageContent::Chat(text) if text != "PING" => {
                     let _ = node.persist_message(&msg);
                 }
-
-                // PHASE 4 STORAGE HANDLERS 
 
                 MessageContent::DirectoryRequest => {
                     let library = node.get_local_library()?;
@@ -339,8 +342,19 @@ impl SentinelNode {
                     }
                 }
 
+                MessageContent::DirectoryResponse(remote_library) => {
+                    println!("\n[!] Received Library from {}:", addr);
+                    if remote_library.is_empty() {
+                        println!("    [The ghost has no manifested files]");
+                    }
+                    for file in remote_library {
+                        println!("  > {} ({} chunks) | ID: {}", file.name, file.total_chunks, file.id);
+                    }
+                    print!("\nwraith@{} >> ", &node.identity.node_id()[..8]);
+                    let _ = std::io::stdout().flush();
+                }
+
                 MessageContent::DataRequest { file_id, chunk_index } => {
-                // fetch dust" from Sled
                     if let Ok(Some(chunk_data)) = node.db.open_tree("file_chunks")?
                         .get(format!("{}_{}", file_id, chunk_index)) 
                     {
@@ -362,6 +376,42 @@ impl SentinelNode {
             }
             Ok(())
         }.boxed()
+    }
+
+    pub async fn is_local_peer(&self, target: SocketAddr) -> bool {
+        if let Some(my_public) = *self.public_addr.read().await {
+            return target.ip() == my_public.ip();
+        }
+        false
+    }
+
+    pub async fn discover_and_set_public_ip(&self) -> Result<()> {
+        match FighterSocket::discover_public_ip(self.listen_port).await {
+            Ok(addr) => {
+                let mut lock = self.public_addr.write().await;
+                *lock = Some(addr);
+                Ok(())
+            }
+            Err(e) => Err(anyhow::anyhow!("STUN discovery failed: {}", e)),
+        }
+    }
+
+    pub fn sign_and_send(&self, tx: &mpsc::UnboundedSender<SentinelMessage>, mut msg: SentinelMessage) {
+        msg.public_key = self.identity.public_key_bytes();
+        msg.signature = self.identity.sign(&msg.sig_hash());
+        let _ = tx.send(msg);
+    }
+
+    pub async fn start_heartbeat_service(self: Arc<Self>) {
+        let mut interval = tokio::time::interval(Duration::from_secs(20));
+        loop {
+            interval.tick().await;
+            let ping = SentinelMessage::new(self.identity.node_id(), MessageContent::Chat("PING".into()));
+            for entry in self.peers.iter() {
+                self.sign_and_send(&entry.value().tx, ping.clone());
+            }
+            self.peers.retain(|_, state| state.last_seen.elapsed() < Duration::from_secs(60));
+        }
     }
 
     pub async fn start_gossip_service(self: Arc<Self>) {
@@ -387,30 +437,23 @@ impl SentinelNode {
     pub fn ingest_file(&self, name: &str, file_id: Uuid, chunks: Vec<Vec<u8>>) -> Result<()> {
         let metadata_tree = self.db.open_tree("file_metadata")?;
         let chunks_tree = self.db.open_tree("file_chunks")?;
-
-        // 1. Store the chunks
         for (i, data) in chunks.iter().enumerate() {
             chunks_tree.insert(format!("{}_{}", file_id, i), data.as_slice())?;
         }
-
-        // 2. Store the metadata so we can list it later
         let meta = sentinel_protocol::messages::FileMetadata {
             id: file_id,
             name: name.to_string(),
-            size: (chunks.len() * 1024 * 1024) as u64, // Approximate
+            size: (chunks.len() * 1024 * 1024) as u64,
             total_chunks: chunks.len() as u32,
-            merkle_root: vec![], // Future: add integrity check
+            merkle_root: vec![],
         };
-        
         metadata_tree.insert(file_id.as_bytes(), bincode::serialize(&meta)?)?;
         Ok(())
     }
 
-    /// Retrieve the list of all files this node is hosting
     pub fn get_local_library(&self) -> Result<Vec<sentinel_protocol::messages::FileMetadata>> {
         let metadata_tree = self.db.open_tree("file_metadata")?;
         let mut library = Vec::new();
-
         for item in metadata_tree.iter() {
             let (_, v) = item?;
             let meta: sentinel_protocol::messages::FileMetadata = bincode::deserialize(&v)?;
@@ -419,9 +462,42 @@ impl SentinelNode {
         Ok(library)
     }
 
+    pub async fn request_peer_library(&self, peer_addr: &str) -> Result<()> {
+        let msg = SentinelMessage::new(self.identity.node_id(), MessageContent::DirectoryRequest);
+        if let Some(peer) = self.peers.get(peer_addr) {
+            self.sign_and_send(&peer.tx, msg);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Peer disconnected"))
+        }
+    }
+
+    pub async fn request_file_chunk(&self, peer_addr: &str, file_id: Uuid, chunk_index: u32) -> Result<()> {
+        let msg = SentinelMessage::new(self.identity.node_id(), MessageContent::DataRequest { file_id, chunk_index });
+        if let Some(peer) = self.peers.get(peer_addr) {
+            self.sign_and_send(&peer.tx, msg);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Peer not found"))
+        }
+    }
+
     pub fn persist_message(&self, msg: &SentinelMessage) -> Result<()> {
         let tree = self.db.open_tree("messages")?;
         tree.insert(format!("{}:{}", msg.timestamp, msg.sender), msg.to_bytes())?;
+        Ok(())
+    }
+
+    pub fn print_history(&self) -> Result<()> {
+        let tree = self.db.open_tree("messages")?;
+        for item in tree.iter().values().rev().take(10) { 
+            let item = item?;
+            if let Ok(msg) = SentinelMessage::from_bytes(&item) {
+                if let MessageContent::Chat(text) = msg.content {
+                    println!("[{}] {}", msg.sender, text);
+                }
+            }
+        }
         Ok(())
     }
 }

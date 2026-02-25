@@ -1,11 +1,13 @@
 [workspace]
 members = [
     "crates/sentinel-core",
-    "crates/sentinel-core/crates/sentinel-protocol",
-    "crates/sentinel-core/crates/sentinel-transport",
     "crates/sentinel-core/crates/sentinel-crypto",
+    "crates/sentinel-core/crates/sentinel-protocol",
+    "crates/sentinel-core/crates/sentinel-signaler",
+    "crates/sentinel-core/crates/sentinel-transport",
+    "crates/wraith-cli",
     "crates/wraith-fs",
-    "crates/wraith-cli", "crates/wraith-gui",
+    "crates/wraith-gui",
 ]
 resolver = "2"
 
