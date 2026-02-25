@@ -1,42 +1,26 @@
-use bip39::{Mnemonic, Language};
-use serde::{Serialize, Deserialize};
-use rand::RngCore;
-use ed25519_dalek::SigningKey;
+use anyhow::Result;
+use sentinel_crypto::NodeIdentity;
 use std::io::{self, Write};
+use std::path::Path;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct WraithIdentity {
-    seed_phrase: String,
-    public_key: String,
-}
-
-fn main() {
+fn main() -> Result<()> {
     print_banner();
 
-    // Load or Create Identity
-    let identity: WraithIdentity = confy::load("wraith-os", "identity").unwrap_or_default();
+    // Path to the persistent identity file
+    let key_path = "identity.key";
 
-    let active_identity = if identity.seed_phrase.is_empty() {
-        println!("No spectral identity found in the void.");
-        println!("Press ENTER to summon a new identity, or type your 24 words to manifest...");
-        
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let trimmed = input.trim();
-
-        if trimmed.is_empty() {
-            summon_new_identity()
-        } else {
-            manifest_from_words(trimmed)
-        }
+    // 1. Load existing or enter setup ritual
+    let identity = if Path::new(key_path).exists() {
+        println!("Welcome back, Ghost. Identity loaded from sector.");
+        NodeIdentity::load_or_generate(key_path)?
     } else {
-        println!("Welcome back, Ghost.");
-        println!("Node ID: {}", identity.public_key);
-        identity
+        perform_initial_ritual(key_path)?
     };
 
-    // Enter the Sentinel Loop
-    boot_sentinel(active_identity);
+    // 2. Start the interactive Sentinel loop
+    boot_sentinel(identity);
+
+    Ok(())
 }
 
 fn print_banner() {
@@ -46,60 +30,49 @@ fn print_banner() {
     println!("-------------------------------------------");
 }
 
-fn summon_new_identity() -> WraithIdentity {
-    let mut entropy = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut entropy);
+fn perform_initial_ritual(key_path: &str) -> Result<NodeIdentity> {
+    println!("No spectral identity found in the void.");
+    println!("[1] Manifest (Input existing Private Key or 24 Words)");
+    println!("[2] Summon (Generate a new 24-word identity)");
 
-    let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)
-        .expect("Failed to create mnemonic");
-    let phrase = mnemonic.to_string();
+    let choice = prompt("Selection: ");
 
-    let identity = derive_identity_from_phrase(&phrase);
-    
-    println!("\n⚠️  NEW RECOVERY PHRASE GENERATED ⚠️");
-    println!("-------------------------------------------");
-    println!("{}", phrase);
-    println!("-------------------------------------------");
-    println!("Identity bound to system config.");
-
-    confy::store("wraith-os", "identity", &identity).expect("Failed to save identity");
-    identity
-}
-
-fn manifest_from_words(phrase: &str) -> WraithIdentity {
-    match Mnemonic::parse_in_normalized(Language::English, phrase) {
-        Ok(_) => {
-            let identity = derive_identity_from_phrase(phrase);
-            confy::store("wraith-os", "identity", &identity).expect("Failed to save identity");
-            println!("Identity manifested and stored.");
-            identity
-        },
-        Err(e) => {
-            println!("Error: The words do not match the ritual requirements: {}", e);
-            std::process::exit(1);
+    let id = match choice.as_str() {
+        "1" => {
+            println!("Choose your medium: [K]ey (Hex) or [W]ords (24 words)");
+            let medium = prompt("> ").to_lowercase();
+            if medium == "k" {
+                let hex = prompt("Enter Private Key (Hex): ");
+                NodeIdentity::from_hex_key(&hex)?
+            } else {
+                let words = prompt("Enter 24 words: ");
+                NodeIdentity::from_mnemonic(&words)?
+            }
         }
-    }
+        "2" => {
+            let new_id = NodeIdentity::generate_with_mnemonic();
+            println!("\n⚠️  NEW RECOVERY PHRASE GENERATED ⚠️");
+            println!("-------------------------------------------");
+            println!("{}", new_id.mnemonic_phrase.as_ref().unwrap());
+            println!("-------------------------------------------");
+            println!("Record these words. They are your only bridge to the void.");
+            new_id
+        }
+        _ => return Err(anyhow::anyhow!("Invalid ritual selection.")),
+    };
+
+    // Save the derived key for future sessions
+    id.save(key_path)?;
+    println!("Identity bound to file: {}", key_path);
+    Ok(id)
 }
 
-fn derive_identity_from_phrase(phrase: &str) -> WraithIdentity {
-    let mnemonic = Mnemonic::parse_in_normalized(Language::English, phrase).unwrap();
-    let seed = mnemonic.to_seed(""); 
-    let seed_32: [u8; 32] = seed[0..32].try_into().expect("Seed conversion failed");
-    
-    let signing_key = SigningKey::from_bytes(&seed_32);
-    let public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
-
-    WraithIdentity {
-        seed_phrase: phrase.to_string(),
-        public_key: public_key_hex,
-    }
-}
-
-fn boot_sentinel(id: WraithIdentity) {
-    println!("Initializing Sentinel Engine for Node {}...", id.public_key);
+fn boot_sentinel(id: NodeIdentity) {
+    println!("Initializing Sentinel Engine for Node {}...", id.node_id());
     
     loop {
-        print!("\nwraith@{} >> ", &id.public_key[..8]);
+        // Use a slice of the Node ID for the prompt
+        print!("\nwraith@{} >> ", &id.node_id()[..8]);
         io::stdout().flush().unwrap();
 
         let mut cmd = String::new();
@@ -111,10 +84,24 @@ fn boot_sentinel(id: WraithIdentity) {
                 println!("Closing spectral connection...");
                 break;
             },
-            "id" => println!("Node ID: {}", id.public_key),
-            "peers" => println!("Scanning the void for peers... [0 Found]"),
-            "help" => println!("Commands: id, peers, help, banish"),
+            "id" => {
+                println!("Public Node ID: {}", id.node_id());
+                println!("Private Key:    {}", id.private_key_hex());
+                if let Some(p) = &id.mnemonic_phrase {
+                    println!("Recovery Phrase: {}", p);
+                }
+            },
+            "peers" => println!("Scanning the void for peers... [Searching via sentinel-transport]"),
+            "help" => println!("Commands: id, peers, help, exit"),
             _ => println!("Unknown ritual command: {}", cmd),
         }
     }
+}
+
+fn prompt(msg: &str) -> String {
+    print!("{}", msg);
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    input.trim().to_string()
 }

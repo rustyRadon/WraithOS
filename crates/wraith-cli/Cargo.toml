@@ -15,3 +15,4 @@ sentinel-crypto = { path = "../sentinel-core/crates/sentinel-crypto" }
 hex.workspace = true
 rand.workspace = true
 ed25519-dalek.workspace = true
+anyhow = "1.0"

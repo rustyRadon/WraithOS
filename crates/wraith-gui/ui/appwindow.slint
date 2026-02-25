@@ -11,74 +11,85 @@ export component AppWindow inherits Window {
     callback copy_node_id();
     
     in property <string> node_id: "VOID_NODE";
+    in property <string> display_id: "VOID...NODE"; // NEW: Handled by Rust
     in-out property <[string]> words: ["","","","","","","","","","","","","","","","","","","","","","","",""];
     in-out property <int> active_socket: -1;
     in-out property <bool> manifesting: false;
 
+    // --- VOID ATMOSPHERE ---
     Image {
         source: @image-url("../images/img1.png");
         width: 100%; height: 100%; image-fit: cover;
-        opacity: root.manifesting ? 0.4 : 0.15;
-        animate opacity { duration: 1500ms; easing: ease-in-out; }
+        opacity: root.manifesting ? 0.3 : 0.1;
+        animate opacity { duration: 1000ms; }
     }
 
-    Rectangle {
-        background: @radial-gradient(circle, #00000000 0%, #000000dd 85%);
-    }
+    Rectangle { background: @radial-gradient(circle, #00000000 0%, #000000fb 90%); }
 
     VerticalLayout {
-        padding: 50px; spacing: 40px; alignment: center;
+        padding: 40px; spacing: 30px; alignment: center;
 
         Text {
-            text: root.manifesting ? "⛧ W E L C O M E   H O M E ⛧" : "⛧ W R A I T H   O S ⛧";
-            font-size: 48px;
-            font-weight: 900;
+            text: root.manifesting ? "⛧ I D E N T I T Y   M A N I F E S T ⛧" : "⛧ W R A I T H   O S ⛧";
+            font-size: 42px; font-weight: 900;
             color: root.manifesting ? #00ffcc : #ff3333;
-            horizontal-alignment: center;
-            letter-spacing: 22px;
-            animate color { duration: 1000ms; }
-            
-            opacity: 0.8 + Math.sin((animation-tick() / 150ms) * 1rad) * 0.2;
+            horizontal-alignment: center; letter-spacing: 20px;
+            opacity: 0.7 + Math.sin((animation-tick() / 200ms) * 1rad) * 0.3;
         }
 
         Rectangle {
-            height: 580px; width: 850px;
-            for row_idx in 4: HorizontalLayout {
-                y: row_idx * 145px; spacing: 35px; alignment: center;
-                for col_idx in 6: socket-container := Rectangle { 
-                    property <int> idx: row_idx * 6 + col_idx;
-                    width: 100px; height: 100px;
+            height: 600px; width: 900px;
+            
+            if (root.manifesting) : Rectangle {
+                width: 280px; height: 280px; border-radius: 140px;
+                background: #00ffcc05; border-width: 1px; border-color: #00ffcc33;
+                z: 10;
+                
+                VerticalLayout {
+                    alignment: center; spacing: 10px;
+                    Text { text: "NODE SIGNATURE"; color: #00ffcc88; font-size: 10px; horizontal-alignment: center; }
+                    Text { 
+                        text: root.display_id; // Fixed: Using the pre-formatted string
+                        color: #00ffcc; font-family: "monospace"; font-size: 16px; horizontal-alignment: center;
+                    }
+                    Button {
+                        text: "COPY ID"; width: 100px; height: 30px;
+                        clicked => { root.copy_node_id() }
+                    }
+                }
+                Rectangle {
+                    width: 100%; height: 100%; border-radius: 140px;
+                    border-width: 2px; border-color: #00ffcc55;
+                    opacity: 0.5 + Math.sin((animation-tick() / 500ms) * 1rad) * 0.5;
+                }
+            }
 
+            for row_idx in 4: HorizontalLayout {
+                y: row_idx * 150px; spacing: 40px; alignment: center;
+                for col_idx in 6: socket-container := Rectangle {
+                    property <int> idx: row_idx * 6 + col_idx;
+                    width: 110px; height: 110px;
                     property <float> t: animation-tick() / 1ms;
-                    property <length> off_x: Math.sin((t / 2500.0 + (idx * 0.6)) * 1rad) * 15px;
-                    property <length> off_y: Math.cos((t / 2500.0 + (idx * 0.6)) * 1rad) * 15px;
+                    property <length> radius: root.manifesting ? 25px : 12px;
+                    property <length> off_x: Math.sin((t / 3000.0 + (idx * 0.5)) * 1rad) * radius;
+                    property <length> off_y: Math.cos((t / 3000.0 + (idx * 0.5)) * 1rad) * radius;
 
                     TouchArea {
                         clicked => { root.active_socket = idx; }
-                        
                         Rectangle {
                             x: socket-container.off_x + (parent.width - self.width) / 2;
                             y: socket-container.off_y + (parent.height - self.height) / 2;
-                            width: 80px; height: 80px; border-radius: 40px;
+                            width: 85px; height: 85px; border-radius: 42.5px;
+                            background: root.active_socket == idx ? #ff333333 : #050505;
+                            border-width: root.active_socket == idx ? 2px : 1px;
+                            border-color: root.words[idx] == "" ? #222 : (root.manifesting ? #00ffcc : #ff3333);
                             
-                            background: root.active_socket == idx 
-                                ? #ff333366 
-                                : (root.manifesting ? #00ffcc15 : #0a0a0a);
-                            
-                            border-width: root.active_socket == idx ? 3px : 1.5px;
-                            border-color: root.words[idx] == "" 
-                                ? #222 
-                                : (root.manifesting ? #00ffcc : #ff3333);
-                            
-                            drop-shadow-blur: root.manifesting ? 20px : 0px;
-                            drop-shadow-color: #00ffcc66;
-
-                            animate background, border-color, width, height { duration: 400ms; easing: ease-out; }
-
                             Text {
-                                text: root.manifesting ? "" : (root.words[idx] == "" ? "\{idx + 1}" : "⚸");
-                                color: root.words[idx] == "" ? #444 : #ff3333;
-                                font-size: 16px;
+                                text: root.active_socket == idx ? "\{idx + 1}" : 
+                                      (root.words[idx] == "" ? "" : 
+                                      (root.manifesting ? "⚸" : root.words[idx]));
+                                color: root.manifesting ? #00ffcc : #ff3333;
+                                font-size: root.manifesting ? 18px : 10px;
                                 font-family: "monospace";
                             }
                         }
@@ -88,25 +99,15 @@ export component AppWindow inherits Window {
         }
 
         if (!root.manifesting) : Rectangle {
-            width: 550px; height: 100px;
-            background: #050505f0; 
-            border-radius: 2px; 
-            border-width: 1px; 
-            border-color: #ff333333;
-            
-            VerticalLayout {
-                padding: 15px; spacing: 8px;
-                Text {
-                    text: root.active_socket == -1 
-                        ? ">> STANDBY: SELECT A SOCKET TO INJECT IDENTITY" 
-                        : ">> INJECTING DATA INTO NODE #\{root.active_socket + 1}...";
-                    color: #ff3333; font-family: "monospace"; font-size: 11px;
-                    letter-spacing: 1px;
-                }
+            width: 600px; height: 90px;
+            background: #0a0a0a; border-radius: 4px; border-width: 1px; border-color: #ff333322;
+            HorizontalLayout {
+                padding: 20px; spacing: 15px;
+                Text { text: ">>"; color: #ff3333; font-family: "monospace"; vertical-alignment: center; }
                 LineEdit {
-                    placeholder-text: "awaiting ritual word...";
+                    placeholder-text: root.active_socket == -1 ? "SELECT NODE..." : "INCANT WORD #\{root.active_socket + 1}";
                     enabled: root.active_socket != -1;
-                    font-size: 18px;
+                    font-size: 20px;
                     accepted(val) => {
                         root.words[root.active_socket] = val;
                         if (root.active_socket < 23) { root.active_socket += 1; }
@@ -116,45 +117,21 @@ export component AppWindow inherits Window {
             }
         }
 
-        if (root.manifesting) : Rectangle {
-            width: 700px; height: 80px;
-            background: #00ffcc08; border-radius: 40px; border-width: 1px; border-color: #00ffcc44;
-            
-            HorizontalLayout {
-                padding-left: 30px; padding-right: 30px; spacing: 20px;
-                alignment: center;
-                Text {
-                    text: "NODE ID:"; color: #00ffcc88; font-weight: 800; vertical-alignment: center;
-                }
-                Text {
-                    text: root.node_id; color: #00ffcc; font-family: "monospace"; 
-                    vertical-alignment: center; font-size: 12px;
-                }
-                Button {
-                    text: "COPY"; width: 80px; height: 35px;
-                    clicked => { root.copy_node_id() }
-                }
-            }
-        }
-
         HorizontalLayout {
-            spacing: 30px; alignment: center;
-            
+            spacing: 40px; alignment: center;
             if (!root.manifesting) : Button {
-                text: "⛧ SUMMON NEW ⛧";
-                width: 200px; height: 55px;
+                text: "SUMMON ENTROPY"; width: 220px; height: 50px;
                 clicked => { root.generate_identity(); }
             }
-
             Button {
                 text: root.manifesting ? "🔥 B A N I S H 🔥" : "⛧ M A N I F E S T ⛧";
-                width: 300px; height: 60px;
+                width: 320px; height: 60px;
                 clicked => { 
                     if (root.manifesting) {
                         root.manifesting = false;
                         root.words = ["","","","","","","","","","","","","","","","","","","","","","","",""];
                     } else {
-                        root.manifest_identity("exec");
+                        root.manifest_identity("execute");
                     }
                 }
             }

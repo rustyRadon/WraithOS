@@ -12,6 +12,7 @@ rand = "0.8"
 bs58 = "0.5"
 multihash = "0.19"
 zeroize = { version = "1.8", features = ["derive", "zeroize_derive"] }
+bip39 = "2.2.2"
 
 [dev-dependencies]
 tempfile = "3.8"
