@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# WraithOS Ritual Wrapper
+COMMAND=$1
+SHIFT_ARGS="${@:2}"
+
+case $COMMAND in
+  "signal")
+    echo "⛧ Summoning the Signaler..."
+    cargo run -q -p sentinel-signaler
+    ;;
+  "start")
+    PORT=${2:-5000}
+    DATA_DIR=${3:-./host_data}
+    echo "⛧ Manifesting Sentinel Node on Port $PORT..."
+    cargo run -q -p wraith-cli -- $PORT $DATA_DIR
+    ;;
+  "clean")
+    echo "⛧ Purging the build artifacts..."
+    cargo clean
+    ;;
+  "id")
+    # A quick way to check your keys without running the full OS
+    cat ./host_data/identity.key 2>/dev/null || echo "No identity found."
+    ;;
+  *)
+    echo "Usage: ./wraith [signal|start|clean|id]"
+    ;;
+esac
