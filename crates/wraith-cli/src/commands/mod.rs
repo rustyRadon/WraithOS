@@ -8,6 +8,7 @@ pub mod ls;
 pub mod upload;
 pub mod request;
 pub mod peers;
+pub mod reify;
 
 #[async_trait]
 pub trait WraithCommand {

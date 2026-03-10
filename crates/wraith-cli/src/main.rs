@@ -105,6 +105,7 @@ async fn boot_sentinel(node: Arc<SentinelNode>) -> Result<()> {
             "upload"  => UploadCommand.execute(Arc::clone(&node), args).await?,
             "peers"   => PeersCommand.execute(Arc::clone(&node), args).await?,
             "request" => RequestCommand.execute(Arc::clone(&node), args).await?,
+            "reify" => commands::reify::ReifyCommand.execute(Arc::clone(&node), args).await?,
             "help"    => {
                 println!("--- Available Rituals ---");
                 println!("  id       - Show local Node ID and Public IP");
