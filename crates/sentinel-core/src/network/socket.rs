@@ -1,7 +1,6 @@
 use socket2::{Socket, Domain, Type, Protocol, SockAddr};
 use std::net::{SocketAddr, /*ToSocketAddrs,*/ UdpSocket as StdUdpSocket};
 use anyhow::{Result, anyhow};
-// use stunclient::StunClient; 
 
 pub struct FighterSocket;
 
@@ -10,15 +9,9 @@ impl FighterSocket {
         let stun_server = "stun.l.google.com:19302";
         let local_udp_addr: SocketAddr = format!("0.0.0.0:{}", local_port).parse()?;
         
-        // Use a standard UDP socket
         let socket = StdUdpSocket::bind(local_udp_addr)?;
         socket.set_read_timeout(Some(std::time::Duration::from_secs(2)))?;
 
-        // Manual STUN Binding Request Header (20 bytes)
-        // [0..2]  Type: 0x0001 (Binding Request)
-        // [2..4]  Length: 0x0000
-        // [4..8]  Magic Cookie: 0x2112A442
-        // [8..20] Transaction ID: (Random)
         let mut request = [0u8; 20];
         request[0..2].copy_from_slice(&[0x00, 0x01]);
         request[4..8].copy_from_slice(&[0x21, 0x12, 0xA4, 0x42]);
@@ -30,12 +23,8 @@ impl FighterSocket {
             let mut buf = [0u8; 512];
             let (len, _) = socket.recv_from(&mut buf)?;
             
-            // Simple check: we want the MAPPED-ADDRESS (0x0001) or XOR-MAPPED-ADDRESS (0x0020)
-            // For now, we'll just extract the IP/Port from the raw STUN response buffer
-            // if we find the magic attribute types.
             if len < 20 { return Err(anyhow!("Short STUN response")); }
 
-            // This is a minimal parser for XOR-MAPPED-ADDRESS
             for i in 20..len-4 {
                 if buf[i..i+2] == [0x00, 0x20] { // XOR-MAPPED-ADDRESS attribute
                     let port = (u16::from_be_bytes([buf[i+6], buf[i+7]])) ^ 0x2112;
@@ -62,10 +51,8 @@ impl FighterSocket {
         let domain = if local_addr.is_ipv6() { Domain::IPV6 } else { Domain::IPV4 };
         let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
 
-        // 1. Set Reuse Address (Standard)
         socket.set_reuse_address(true)?;
         
-        // 2. Set Reuse Port using raw system calls to avoid crate feature issues
         #[cfg(unix)]
         {
             use std::os::unix::io::AsRawFd;

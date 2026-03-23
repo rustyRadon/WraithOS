@@ -14,7 +14,6 @@ impl WraithCommand for PeersCommand {
         if node.peers.is_empty() {
             println!("[Scanning...] No active peer connections in this sector.");
         } else {
-            // Using dashmap's iterator
             for entry in node.peers.iter() {
                 let peer = entry.value();
                 println!("ID: {} | Node: {} | Status: Entangled", 

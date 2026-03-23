@@ -18,6 +18,15 @@ use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::codec::Framed;
 use uuid::Uuid;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileManifest {
+    pub id: Uuid,
+    pub name: String,
+    pub total_chunks: u32,
+    pub chunks: Vec<String>, // chunk hashes
+}
 
 use crate::network::socket::FighterSocket;
 use crate::SentinelEvent;
@@ -43,7 +52,6 @@ pub struct SentinelNode {
 }
 
 impl SentinelNode {
-    /// Initializes a new SentinelNode instance with persistent storage and identity
     pub async fn new(data_dir: PathBuf, listen_port: u16) -> Result<(Self, mpsc::UnboundedReceiver<SentinelMessage>)> {
         if !data_dir.exists() {
             std::fs::create_dir_all(&data_dir)?;
@@ -84,7 +92,6 @@ impl SentinelNode {
         ))
     }
 
-    /// The Main Engine Loop: Handles the TCP Listener and translates network bytes into SentinelEvents
     pub async fn run(self: Arc<Self>, event_tx: mpsc::UnboundedSender<SentinelEvent>) -> Result<()> {
         let addr = format!("0.0.0.0:{}", self.listen_port);
         let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -143,9 +150,7 @@ impl SentinelNode {
         }
     }
 
-    /// Universal entry point for connecting to a Ghost by ID (Global or Local)
     pub async fn request_ghost_by_id(self: Arc<Self>, target_id: String) -> Result<()> {
-        // 1. Check if we already have an IP for this ID (cached or discovered via mDNS)
         let existing_addr = self.peers.iter().find_map(|entry| {
             if entry.value().node_id == target_id { Some(entry.key().clone()) } else { None }
         });
@@ -153,14 +158,12 @@ impl SentinelNode {
         let target_addr = if let Some(addr) = existing_addr {
             addr
         } else {
-            // 2. Fallback to Global Registry lookup
             self.query_registry(&target_id).await?
         };
 
         self.dial_peer(target_addr).await
     }
 
-    /// The networking "Pipes" with integrated Hole Punching
     pub async fn dial_peer(self: Arc<Self>, addr: String) -> Result<()> {
         let target_addr: SocketAddr = addr.to_socket_addrs()?.next()
             .context("Address resolution failed")?;
@@ -169,7 +172,6 @@ impl SentinelNode {
             return Ok(());
         }
 
-        // --- THE FIGHTER PUNCH (NAT Traversal) ---
         let local_bind = SocketAddr::from(([0, 0, 0, 0], self.listen_port));
         let fighter = FighterSocket::create_war_ready(local_bind)
             .or_else(|_| FighterSocket::create_war_ready(SocketAddr::from(([0, 0, 0, 0], 0))))?;
@@ -179,7 +181,6 @@ impl SentinelNode {
         let std_stream: std::net::TcpStream = fighter.into();
         let tokio_stream = TokioTcpStream::from_std(std_stream)?;
         tokio_stream.writable().await?;
-        // -----------------------------------------
 
         let connector = SentinelConnector::new();
         let tls = connector.connect("sentinel-node.local", tokio_stream).await?;
@@ -219,7 +220,6 @@ impl SentinelNode {
         Ok(())
     }
 
-    /// Global "Phonebook" lookup against the Signaler server
     pub async fn query_registry(&self, target_id: &str) -> Result<String> {
         let signaler_addr = "127.0.0.1:8888"; // Update this to your deployed Signaler IP
         
@@ -227,7 +227,6 @@ impl SentinelNode {
             .context("Signaler unreachable")?;
         let mut framed = Framed::new(stream, SentinelCodec::new());
 
-        // We must register ourselves to the signaler to perform lookups
         let reg = SentinelMessage::new(
             self.identity.node_id(),
             MessageContent::Signal(SignalingMessage::Register {
@@ -499,5 +498,49 @@ impl SentinelNode {
             }
         }
         Ok(())
+    }
+
+    pub fn get_file_manifest(&self, file_id: &str) -> Result<FileManifest> {
+        let metadata_tree = self.db.open_tree("file_metadata")?;
+        let file_uuid = Uuid::parse_str(file_id)?;
+        let meta_bytes = metadata_tree.get(file_uuid.as_bytes())?
+            .ok_or_else(|| anyhow::anyhow!("File not found"))?;
+        let meta: sentinel_protocol::messages::FileMetadata = bincode::deserialize(&meta_bytes)?;
+        
+        let chunks_tree = self.db.open_tree("file_chunks")?;
+        let mut chunks = Vec::new();
+        for i in 0..meta.total_chunks {
+            let key = format!("{}_{}", file_uuid, i);
+            if chunks_tree.get(&key)?.is_some() {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                key.hash(&mut hasher);
+                chunks.push(format!("{:x}", hasher.finish()));
+            }
+        }
+        
+        Ok(FileManifest {
+            id: meta.id,
+            name: meta.name,
+            total_chunks: meta.total_chunks,
+            chunks,
+        })
+    }
+
+    pub async fn load_chunk(&self, chunk_hash: &str) -> Result<Vec<u8>> {
+        let chunks_tree = self.db.open_tree("file_chunks")?;
+        for item in chunks_tree.iter() {
+            let (key, value) = item?;
+            let key_str = String::from_utf8_lossy(&key);
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            key_str.hash(&mut hasher);
+            if format!("{:x}", hasher.finish()) == chunk_hash {
+                return Ok(value.to_vec());
+            }
+        }
+        Err(anyhow::anyhow!("Chunk not found"))
     }
 }

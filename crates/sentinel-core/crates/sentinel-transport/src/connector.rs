@@ -4,7 +4,6 @@ use tokio_rustls::{TlsConnector, client::TlsStream};
 use rustls::{ClientConfig, pki_types::ServerName};
 use anyhow::Result;
 
-//  Custom Verifier
 #[derive(Debug)]
 struct DangerVerifier;
 
@@ -51,7 +50,6 @@ impl rustls::client::danger::ServerCertVerifier for DangerVerifier {
     }
 }
 
-// connector 
 pub struct SentinelConnector {
     config: Arc<ClientConfig>,
 }

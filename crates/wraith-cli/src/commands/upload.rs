@@ -17,7 +17,6 @@ impl WraithCommand for UploadCommand {
         let path = &args[0];
         println!("⛧ Slicing {} into the void...", path);
 
-        // Derive a 32-byte key from the identity for the encryption ritual
         let mut key = [0u8; 32];
         let pk_bytes = node.identity.public_key_bytes();
         let len = pk_bytes.len().min(32);

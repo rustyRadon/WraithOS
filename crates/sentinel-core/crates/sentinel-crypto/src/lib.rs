@@ -10,7 +10,6 @@ use bip39::{Mnemonic, Language};
 #[derive(Debug)]
 pub struct NodeIdentity {
     signing_key: SigningKey,
-    /// The mnemonic phrase is stored optionally if derived from words
     pub mnemonic_phrase: Option<String>,
 }
 
@@ -22,7 +21,6 @@ impl Drop for NodeIdentity {
 }
 
 impl NodeIdentity {
-    /// Internal constructor: Creates Identity from raw 32-byte seed
     fn from_seed(seed: [u8; 32], phrase: Option<String>) -> Self {
         Self {
             signing_key: SigningKey::from_bytes(&seed),
@@ -30,7 +28,6 @@ impl NodeIdentity {
         }
     }
 
-    /// SUMMON: Generate a brand new identity via 24 words (BIP39)
     pub fn generate_with_mnemonic() -> Self {
         let mut entropy = [0u8; 32];
         OsRng.fill_bytes(&mut entropy);
@@ -40,7 +37,6 @@ impl NodeIdentity {
         let phrase = mnemonic.to_string();
         let seed = mnemonic.to_seed("");
         
-        // Extract the first 32 bytes of the 64-byte BIP39 seed for Ed25519
         let mut seed_bytes: [u8; 32] = seed[0..32].try_into().unwrap();
         let id = Self::from_seed(seed_bytes, Some(phrase));
         
@@ -48,7 +44,6 @@ impl NodeIdentity {
         id
     }
 
-    /// MANIFEST: Load identity from an existing 24-word phrase
     pub fn from_mnemonic(phrase: &str) -> Result<Self> {
         let mnemonic = Mnemonic::parse_in_normalized(Language::English, phrase.trim())
             .map_err(|e| anyhow::anyhow!("Mnemonic parsing failed: {}", e))?;
@@ -58,7 +53,6 @@ impl NodeIdentity {
         Ok(Self::from_seed(seed_bytes, Some(phrase.to_string())))
     }
 
-    /// MANIFEST: Load identity from a raw Hexadecimal Private Key
     pub fn from_hex_key(hex_str: &str) -> Result<Self> {
         let bytes = hex::decode(hex_str.trim())
             .map_err(|e| anyhow::anyhow!("Invalid hex encoding: {}", e))?;
@@ -68,13 +62,11 @@ impl NodeIdentity {
         Ok(Self::from_seed(array, None))
     }
 
-    /// Generate identity using OsRng directly (no mnemonic)
     pub fn generate() -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         Self { signing_key, mnemonic_phrase: None }
     }
 
-    /// Persistence: Load from file or generate new if missing
     pub fn load_or_generate<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let exists = path.exists() && fs::metadata(path)?.len() > 0;
@@ -91,12 +83,10 @@ impl NodeIdentity {
         }
     }
 
-    /// Get the Hex string representation of the Public Key (Node ID)
     pub fn node_id(&self) -> String {
         hex::encode(self.signing_key.verifying_key().to_bytes())
     }
 
-    /// Get the Hex string representation of the Private Key
     pub fn private_key_hex(&self) -> String {
         hex::encode(self.signing_key.to_bytes())
     }
@@ -105,12 +95,10 @@ impl NodeIdentity {
         self.signing_key.verifying_key().to_bytes().to_vec()
     }
 
-    /// Sign a message using the identity's private key
     pub fn sign(&self, message: &[u8]) -> Vec<u8> {
         self.signing_key.sign(message).to_bytes().to_vec()
     }
 
-    /// Static verification helper
     pub fn verify(message: &[u8], signature_bytes: &[u8], pubkey_bytes: &[u8]) -> bool {
         if let (Ok(sig), Ok(pubkey)) = (
             Signature::from_slice(signature_bytes),
@@ -121,12 +109,10 @@ impl NodeIdentity {
         false
     }
 
-    /// Verify a signature against this specific identity
     pub fn verify_internal(&self, message: &[u8], signature_bytes: &[u8]) -> bool {
         Self::verify(message, signature_bytes, &self.public_key_bytes())
     }
 
-    /// Save the raw 32-byte private key to disk with strict permissions
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
         fs::write(path, self.signing_key.to_bytes())?;
@@ -163,9 +149,3 @@ mod tests {
     }
 }
 
-// - generate()          // New identity
-// - load_or_generate()  // Load or create
-// - node_id()           // Hex identifier  
-// - public_key()        // Get public key
-// - sign() / verify()   // Crypto operations
-// - save()              // Persist to disk

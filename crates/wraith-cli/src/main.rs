@@ -19,10 +19,8 @@ use commands::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 0. Global Security Provider initialization
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    // 1. mi setup
     let args: Vec<String> = std::env::args().collect();
     let port: u16 = args.get(1).and_then(|p| p.parse().ok()).unwrap_or(5000);
     let data_path = args.get(2).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
@@ -34,7 +32,6 @@ async fn main() -> Result<()> {
     }
     let key_path = data_path.join("identity.key");
 
-    // 2. Identity Ritual heheheheheh
     let _identity = if key_path.exists() {
         println!("Welcome back, Ghost. Sector: {}", data_path.display());
         sentinel_crypto::NodeIdentity::load_or_generate(key_path.to_str().unwrap())?
@@ -42,7 +39,6 @@ async fn main() -> Result<()> {
         ritual::perform_initial_ritual(&key_path)?
     };
 
-    // 3. start the mentinel engine vooom vommm
     let (node_raw, signaler_rx) = SentinelNode::new(data_path, port).await
         .context("Failed to ignite Sentinel Engine")?;
     let node = Arc::new(node_raw);

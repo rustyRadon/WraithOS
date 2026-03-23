@@ -2,7 +2,6 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 
-// Use the new library paths
 use sentinel_core::SentinelNode; 
 use sentinel_protocol::messages::{MessageContent, SentinelMessage, SignalingMessage};
 
@@ -19,7 +18,6 @@ pub async fn handle_stdin(node: Arc<SentinelNode>) -> Result<()> {
                 "/dial" => {
                     if parts.len() > 1 {
                         let target = parts[1].to_string();
-                        // If it contains a dot or colon, treat as direct IP dial
                         if target.contains('.') || target.contains(':') {
                             println!("Manual dial to address {}...", target);
                             let node_clone = Arc::clone(&node);
@@ -29,7 +27,6 @@ pub async fn handle_stdin(node: Arc<SentinelNode>) -> Result<()> {
                                 }
                             });
                         } else {
-                            // Signal lookup (P2P Discovery)
                             println!("Requesting lookup for Node ID: {}...", target);
                             let lookup_msg = SentinelMessage::new_signal(
                                 node.identity.node_id(),
@@ -72,7 +69,6 @@ pub async fn handle_stdin(node: Arc<SentinelNode>) -> Result<()> {
                 _ => println!("Unknown command. Available: /dial, /peers, /history, /id"),
             }
         } else {
-            // Standard Chat message
             let content = MessageContent::Chat(line.to_string());
             let msg = SentinelMessage::new(
                 node.identity.node_id(),

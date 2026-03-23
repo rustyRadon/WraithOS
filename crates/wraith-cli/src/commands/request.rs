@@ -17,7 +17,6 @@ impl WraithCommand for RequestCommand {
         let target_id = args[0].clone();
         println!("⛧ Initiating spectral search for: {}...", &target_id[..12]);
 
-        // ts runs in a clone so the CLI stays responsive while we wait for the Signaler
         let node_clone = Arc::clone(&node);
         tokio::spawn(async move {
             match node_clone.request_ghost_by_id(target_id.clone()).await {

@@ -17,11 +17,8 @@ pub use connector::SentinelConnector;
 use tokio::io::{AsyncRead, AsyncWrite};
 use std::net::SocketAddr;
 
-/// The base trait for all Sentinel network communications.
 pub trait SentinelTransport: AsyncRead + AsyncWrite + Unpin + Send {
-    /// Returns the remote address of the peer.
     fn peer_addr(&self) -> Result<SocketAddr, std::io::Error>;
 
-    /// Returns true if the transport is encrypted (TLS).
     fn is_secure(&self) -> bool;
 }

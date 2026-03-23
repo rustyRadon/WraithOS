@@ -16,11 +16,9 @@ struct WraithIdentity {
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
 
-    // --- SPECTRAL LINK: LOAD EXISTING IDENTITY ON STARTUP ---
     let existing_id: WraithIdentity = confy::load("wraith-os", "identity").unwrap_or_default();
     
     if !existing_id.seed_phrase.is_empty() {
-        // 1. Map words to the UI grid
         let words_vec: Vec<SharedString> = existing_id.seed_phrase
             .split_whitespace()
             .map(SharedString::from)
@@ -28,12 +26,10 @@ fn main() -> Result<(), slint::PlatformError> {
         
         ui.set_words(ModelRc::from(Rc::new(VecModel::from(words_vec))));
         
-        // 2. Set the Node ID and show the "Welcome Home" state
         ui.set_node_id(SharedString::from(&existing_id.public_key));
         ui.set_manifesting(true);
     }
 
-    // --- CALLBACK: MANIFEST IDENTITY ---
     ui.on_manifest_identity({
         let ui_handle = ui.as_weak();
         move |_| {
@@ -57,7 +53,6 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // --- CALLBACK: GENERATE IDENTITY ---
     ui.on_generate_identity({
         let ui_handle = ui.as_weak();
         move || {

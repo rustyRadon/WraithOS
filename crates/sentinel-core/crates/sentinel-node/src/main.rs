@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-// Imports from your clean library
 use sentinel_core::{SentinelNode, discovery, SentinelEvent};
 use sentinel_protocol::messages::{MessageContent, SentinelMessage};
 
@@ -29,25 +28,21 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    // 1. Initialize Engine
     let (node_struct, signaler_rx) = SentinelNode::new(args.data_dir, args.port).await?;
     let node = Arc::new(node_struct);
     let (event_tx, mut event_rx) = mpsc::unbounded_channel();
 
-    // 2. Start Discovery & Engine (The Engine now owns the TcpListener!)
     discovery::start_discovery(Arc::clone(&node), args.port).await?;
     
     let engine_node = Arc::clone(&node);
     tokio::spawn(engine_node.run(event_tx));
 
-    // 3. Start Background Services
     let sig_node = Arc::clone(&node);
     let sig_addr = args.signaler.clone();
     tokio::spawn(async move { sig_node.start_signaler_client(sig_addr, signaler_rx).await; });
     tokio::spawn(Arc::clone(&node).start_gossip_service());
     tokio::spawn(Arc::clone(&node).start_heartbeat_service());
 
-    // 4. Event UI Loop (Prints messages from the Engine)
     tokio::spawn(async move {
         while let Some(event) = event_rx.recv().await {
             match event {
@@ -68,7 +63,6 @@ async fn main() -> Result<()> {
     println!("SENTINEL ACTIVE. ID: {}", node.identity.node_id());
     println!("SYSTEM READY. Input commands below.");
 
-    // 5. Input & Shutdown Logic
     tokio::select! {
         res = handlers::handle_stdin(Arc::clone(&node)) => {
             if let Err(e) = res { eprintln!("Terminal error: {}", e); }
@@ -78,7 +72,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Graceful Shutdown
     let goodbye = SentinelMessage::new(
         node.identity.node_id(), 
         MessageContent::Disconnect("Node shutting down".into())

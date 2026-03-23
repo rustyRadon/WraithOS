@@ -18,7 +18,7 @@ impl WraithCommand for LsCommand {
                 } else {
                     for f in files {
                         println!("ID: {} | Name: {} | Chunks: {}", 
-                            &f.id[..8], f.name, f.total_chunks);
+                            &f.id.to_string()[..8], f.name, f.total_chunks);
                     }
                 }
             }
