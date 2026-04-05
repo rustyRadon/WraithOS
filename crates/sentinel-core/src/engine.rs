@@ -20,6 +20,7 @@ use tokio_util::codec::Framed;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
+// Test commit for GitHub verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileManifest {
     pub id: Uuid,
@@ -519,7 +520,8 @@ impl SentinelNode {
                 chunks.push(format!("{:x}", hasher.finish()));
             }
         }
-        
+        //h,jn h lhbh;;h;
+
         Ok(FileManifest {
             id: meta.id,
             name: meta.name,
